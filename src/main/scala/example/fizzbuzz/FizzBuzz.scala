@@ -1,4 +1,4 @@
-package example
+package example.fizzbuzz
 
 import cats.effect.{IO, IOApp}
 
