@@ -1,46 +1,47 @@
 package example.filecopier
 
-import cats.effect.{ExitCode, IO, IOApp, Resource}
+import cats.effect._
+import cats.syntax.all._
 
 import java.io._
 
 object FileCopier extends IOApp {
 
-  private def inputStream(file: File): Resource[IO, FileInputStream] =
+  private def inputStream[F[_] : Sync](file: File): Resource[F, FileInputStream] =
     Resource.make {
-      IO.blocking(new FileInputStream(file))
+      Sync[F].blocking(new FileInputStream(file))
     } { inputStream =>
-      IO.blocking(inputStream.close()).handleErrorWith(_ => IO.unit)
+      Sync[F].blocking(inputStream.close()).handleErrorWith(_ => Sync[F].unit)
     }
 
-  private def outputStream(file: File): Resource[IO, FileOutputStream] =
+  private def outputStream[F[_] : Sync](file: File): Resource[F, FileOutputStream] =
     Resource.make {
-      IO.blocking(new FileOutputStream(file))
+      Sync[F].blocking(new FileOutputStream(file))
     } {
       outputStream =>
-        IO.blocking(outputStream.close()).handleErrorWith(_ => IO.unit)
+        Sync[F].blocking(outputStream.close()).handleErrorWith(_ => Sync[F].unit)
     }
 
-  private def inputOutputStream(inputFile: File, outputFile: File): Resource[IO, (FileInputStream, FileOutputStream)] =
+  private def inputOutputStream[F[_] : Sync](inputFile: File, outputFile: File): Resource[F, (FileInputStream, FileOutputStream)] =
     for {
       in <- inputStream(inputFile)
       out <- outputStream(outputFile)
     } yield (in, out)
 
-  private def transmit(source: InputStream, destination: OutputStream, buffer: Array[Byte], transferredBytes: Long): IO[Long] =
+  private def transmit[F[_] : Sync](source: InputStream, destination: OutputStream, buffer: Array[Byte], transferredBytes: Long): F[Long] =
     for {
-      readBytes <- IO.blocking(source.read(buffer, 0, buffer.length))
+      readBytes <- Sync[F].blocking(source.read(buffer, 0, buffer.length))
       writtenBytes <- if(readBytes > -1) {
-        IO.blocking(destination.write(buffer, 0, readBytes)) >> transmit(source, destination, buffer, transferredBytes + readBytes)
+        Sync[F].blocking(destination.write(buffer, 0, readBytes)) >> transmit(source, destination, buffer, transferredBytes + readBytes)
       } else {
-        IO.pure(transferredBytes)
+        Sync[F].pure(transferredBytes)
       }
     } yield writtenBytes
 
-  private def transfer(inputStream: FileInputStream, outputStream: FileOutputStream): IO[Long] =
+  private def transfer[F[_] : Sync](inputStream: FileInputStream, outputStream: FileOutputStream): F[Long] =
     transmit(inputStream, outputStream, new Array[Byte](1024 * 10), 0L)
 
-  private def copy(source: File, destination: File): IO[Long] =
+  private def copy[F[_] : Sync](source: File, destination: File): F[Long] =
     inputOutputStream(source, destination).use {
       case (in, out) => transfer(in, out)
     }
@@ -54,7 +55,7 @@ object FileCopier extends IOApp {
       }
       source = new File(args(0))
       destination = new File(args(1))
-      transferredBytes <- copy(source, destination)
+      transferredBytes <- copy[IO](source, destination)
       _ <- IO.println(s"$transferredBytes bytes copied from ${source.getPath} to ${destination.getPath}")
     } yield ExitCode.Success
 }
