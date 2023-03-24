@@ -8,6 +8,12 @@ lazy val root = (project in file("."))
     name := "Training Cats Effect",
     libraryDependencies ++= Seq(
       "org.typelevel" %% "cats-effect" % "3.4.8"
+    ),
+    scalacOptions ++= Seq(
+      "-feature",
+      "-deprecation",
+      "-unchecked",
+      "-language:postfixOps"
     )
   )
 
